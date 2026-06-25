@@ -36,7 +36,17 @@ class MyApp extends StatelessWidget {
           title: 'DFC Rider',
           theme: AppTheme.lightTheme,
           debugShowCheckedModeBanner: false,
-          home: authProvider.isAuthenticated ? const HomeLayout() : const LoginPage(),
+          home: !authProvider.isInitialized
+              ? const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.brandRed,
+                    ),
+                  ),
+                )
+              : authProvider.isAuthenticated
+                  ? const HomeLayout()
+                  : const LoginPage(),
           routes: {
             '/login': (context) => const LoginPage(),
             '/home': (context) => const HomeLayout(),

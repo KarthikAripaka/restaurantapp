@@ -9,12 +9,14 @@ class AuthProvider extends ChangeNotifier {
   Rider? _rider;
   String? _token;
   bool _isLoading = false;
+  bool _isInitialized = false;
   String? _error;
 
   Rider? get rider => _rider;
   String? get token => _token;
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
+  bool get isInitialized => _isInitialized;
   String? get error => _error;
 
   AuthProvider() {
@@ -22,12 +24,38 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _loadSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('dfc_rider_token');
-    if (_token != null) {
-      await fetchMe();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString('dfc_rider_token');
+      final cachedProfile = prefs.getString('dfc_rider_profile');
+
+      if (_token != null && cachedProfile != null) {
+        // Instant bootstrap from cache
+        try {
+          _rider = Rider.fromJson(jsonDecode(cachedProfile));
+        } catch (e) {
+          debugPrint('Error parsing cached profile: $e');
+        }
+        _isInitialized = true;
+        notifyListeners();
+
+        // Validate session fresh in the background
+        fetchMe();
+      } else if (_token != null) {
+        // No cache available, block initialization on network fetch
+        await fetchMe();
+        _isInitialized = true;
+        notifyListeners();
+      } else {
+        // No session stored
+        _isInitialized = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading session: $e');
+      _isInitialized = true;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<bool> login(String email, String password) async {
@@ -51,6 +79,7 @@ class AuthProvider extends ChangeNotifier {
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('dfc_rider_token', _token!);
+        await prefs.setString('dfc_rider_profile', jsonEncode(_rider!.toJson()));
 
         _isLoading = false;
         notifyListeners();
@@ -74,6 +103,7 @@ class AuthProvider extends ChangeNotifier {
     _rider = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('dfc_rider_token');
+    await prefs.remove('dfc_rider_profile');
     notifyListeners();
   }
 
@@ -94,6 +124,10 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final riderData = body['data']['rider'];
         _rider = Rider.fromJson(riderData);
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('dfc_rider_profile', jsonEncode(_rider!.toJson()));
+        
         notifyListeners();
       } else if (response.statusCode == 401) {
         await logout();

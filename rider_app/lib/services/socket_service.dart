@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config/constants.dart';
 import '../models/order.dart';
 import '../providers/orders_provider.dart';
-// import '../utils/audio_helper.dart' as audio_helper;
+import '../utils/audio_helper.dart' as audio_helper;
 
 class SocketService extends ChangeNotifier {
   io.Socket? _socket;
@@ -51,18 +52,59 @@ class SocketService extends ChangeNotifier {
     required String title,
     required String body,
   }) async {
-    // Disabled notifications as requested
-    return;
+    if (kIsWeb) return;
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'dfc_rider_notifications_channel',
+        'Delivery Assignments',
+        channelDescription: 'Notifications for newly assigned orders and status updates',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('buzzer'),
+        enableVibration: true,
+      );
+
+      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      await _notificationsPlugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Error showing notification: $e');
+    }
   }
 
   void playBuzzerSound() {
-    // Disabled buzzer sound per user request
-    return;
+    if (kIsWeb) {
+      audio_helper.playBuzzer();
+    } else {
+      // Vibrate on mobile device as a physical alert
+      HapticFeedback.vibrate();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        HapticFeedback.vibrate();
+      });
+    }
   }
 
   void playCancelSound() {
-    // Disabled cancel sound per user request
-    return;
+    if (kIsWeb) {
+      audio_helper.playCancel();
+    } else {
+      HapticFeedback.heavyImpact();
+    }
   }
 
   void connect(String riderId, OrdersProvider ordersProvider) {

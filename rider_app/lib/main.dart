@@ -8,10 +8,12 @@ import 'pages/login_page.dart';
 import 'pages/home_layout.dart';
 import 'theme/app_theme.dart';
 import 'utils/audio_helper.dart';
+import 'services/background_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   initAudio();
+  await initializeBackgroundService();
   runApp(
     MultiProvider(
       providers: [

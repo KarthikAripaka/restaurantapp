@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config/constants.dart';
@@ -10,14 +12,32 @@ import '../providers/orders_provider.dart';
 import '../utils/audio_helper.dart' as audio_helper;
 
 class SocketService extends ChangeNotifier {
-  io.Socket? _socket;
+  io.Socket? _webSocket; // Direct Web Socket fallback
   bool _isConnected = false;
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  StreamSubscription? _assignedSubscription;
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _statusConnectionSubscription;
 
   bool get isConnected => _isConnected;
 
   SocketService() {
     _initNotifications();
+    _initStatusListener();
+  }
+
+  void _initStatusListener() {
+    if (kIsWeb) return;
+    
+    // Sync connection status with background service state
+    _statusConnectionSubscription =
+        FlutterBackgroundService().on('connection_status').listen((event) {
+      if (event != null && event['connected'] != null) {
+        _isConnected = event['connected'];
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _initNotifications() async {
@@ -55,7 +75,7 @@ class SocketService extends ChangeNotifier {
     if (kIsWeb) return;
     try {
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'dfc_rider_notifications_channel',
+        'dfc_rider_notifications_channel_v3',
         'Delivery Assignments',
         channelDescription: 'Notifications for newly assigned orders and status updates',
         importance: Importance.max,
@@ -91,7 +111,7 @@ class SocketService extends ChangeNotifier {
     if (kIsWeb) {
       audio_helper.playBuzzer();
     } else {
-      // Vibrate on mobile device as a physical alert
+      // Vibrate mobile device
       HapticFeedback.vibrate();
       Future.delayed(const Duration(milliseconds: 300), () {
         HapticFeedback.vibrate();
@@ -108,88 +128,37 @@ class SocketService extends ChangeNotifier {
   }
 
   void connect(String riderId, OrdersProvider ordersProvider) {
-    if (_socket != null) {
-      disconnect();
+    if (kIsWeb) {
+      _connectWeb(riderId, ordersProvider);
+      return;
     }
 
-    _socket = io.io(
-      AppConstants.socketUrl,
-      io.OptionBuilder()
-          .setTransports(['websocket', 'polling'])
-          .enableReconnection()
-          .setReconnectionAttempts(10)
-          .setReconnectionDelay(2000)
-          .build(),
-    );
+    debugPrint('🔌 Connecting socket client using background service for Rider ID: $riderId');
 
-    _socket!.onConnect((_) {
-      debugPrint('🔌 Socket connected: ${_socket!.id}');
-      _isConnected = true;
-      notifyListeners();
-      _socket!.emit('join-rider', riderId);
-    });
+    // Notify background service to connect
+    FlutterBackgroundService().invoke('update_credentials', {'riderId': riderId});
 
-    _socket!.onDisconnect((reason) {
-      debugPrint('🔌 Socket disconnected: $reason');
-      _isConnected = false;
-      notifyListeners();
-    });
-
-    _socket!.on('order-assigned', (data) {
+    // Listen for order-assigned events from background service
+    _assignedSubscription?.cancel();
+    _assignedSubscription =
+        FlutterBackgroundService().on('order-assigned').listen((data) {
+      if (data == null) return;
       try {
         final order = Order.fromJson(data);
         ordersProvider.addAssignedOrder(order);
 
-        // Native System Notification
-        showNotification(
-          id: order.id.hashCode,
-          title: '🛵 New Delivery Assigned!',
-          body: 'Order ID: ${order.orderId} · Total: ₹${order.total}',
-        );
-
-        // Web Audio synthesized buzzer beeps
+        // Vibrate/play audio locally while the app is active
         playBuzzerSound();
-
-        // Custom premium floating in-app Snackbar (Disabled per user request)
-        /*
-        scaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Text('🛵', style: TextStyle(fontSize: 24)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'New Delivery Assigned!',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
-                      ),
-                      Text(
-                        'Order ID: ${order.orderId} · Total: ₹${order.total.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 11, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFFF7780E),
-            duration: const Duration(seconds: 6),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-        */
       } catch (e) {
-        debugPrint('Error parsing order-assigned socket event: $e');
+        debugPrint('Error parsing forwarded order-assigned: $e');
       }
     });
 
-    _socket!.on('order-status-update', (data) {
+    // Listen for order-status-update events from background service
+    _statusSubscription?.cancel();
+    _statusSubscription =
+        FlutterBackgroundService().on('order-status-update').listen((data) {
+      if (data == null) return;
       try {
         final orderJson = data['order'];
         final status = data['status'];
@@ -199,69 +168,97 @@ class SocketService extends ChangeNotifier {
         ordersProvider.syncOrder(order);
 
         if (status == 'cancelled') {
-          // Native System Notification
-          showNotification(
-            id: order.id.hashCode + 1,
-            title: '⚠️ Delivery Cancelled',
-            body: 'Order ${order.orderId} has been cancelled by the restaurant',
-          );
-
-          // Web Audio synthesized warning beeps
           playCancelSound();
-
-          // Custom floating warning Snackbar (Disabled per user request)
-          /*
-          scaffoldMessengerKey.currentState?.showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Text('⚠️', style: TextStyle(fontSize: 24)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Delivery Cancelled',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
-                        ),
-                        Text(
-                          'Order ${order.orderId} was cancelled by the restaurant',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: const Color(0xFFE2131C),
-              duration: const Duration(seconds: 7),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-          */
         }
       } catch (e) {
-        debugPrint('Error parsing order-status-update socket event: $e');
+        debugPrint('Error parsing forwarded order-status-update: $e');
+      }
+    });
+  }
+
+  void _connectWeb(String riderId, OrdersProvider ordersProvider) {
+    if (_webSocket != null) {
+      _webSocket!.disconnect();
+    }
+
+    _webSocket = io.io(
+      AppConstants.socketUrl,
+      io.OptionBuilder()
+          .setTransports(['websocket', 'polling'])
+          .enableReconnection()
+          .setReconnectionAttempts(10)
+          .setReconnectionDelay(2000)
+          .build(),
+    );
+
+    _webSocket!.onConnect((_) {
+      debugPrint('🔌 Web Socket connected: ${_webSocket!.id}');
+      _isConnected = true;
+      notifyListeners();
+      _webSocket!.emit('join-rider', riderId);
+    });
+
+    _webSocket!.onDisconnect((reason) {
+      debugPrint('🔌 Web Socket disconnected: $reason');
+      _isConnected = false;
+      notifyListeners();
+    });
+
+    _webSocket!.on('order-assigned', (data) {
+      try {
+        final order = Order.fromJson(data);
+        ordersProvider.addAssignedOrder(order);
+        playBuzzerSound();
+      } catch (e) {
+        debugPrint('Error parsing order-assigned: $e');
+      }
+    });
+
+    _webSocket!.on('order-status-update', (data) {
+      try {
+        final orderJson = data['order'];
+        final status = data['status'];
+        if (orderJson == null) return;
+
+        final order = Order.fromJson(orderJson);
+        ordersProvider.syncOrder(order);
+
+        if (status == 'cancelled') {
+          playCancelSound();
+        }
+      } catch (e) {
+        debugPrint('Error parsing order-status-update: $e');
       }
     });
   }
 
   void disconnect() {
-    if (_socket != null) {
-      _socket!.disconnect();
-      _socket = null;
-      _isConnected = false;
-      notifyListeners();
+    if (kIsWeb) {
+      if (_webSocket != null) {
+        _webSocket!.disconnect();
+        _webSocket = null;
+        _isConnected = false;
+        notifyListeners();
+      }
+      return;
     }
+
+    // Tell the background service to disconnect the socket and log out
+    FlutterBackgroundService().invoke('logout');
+    
+    _assignedSubscription?.cancel();
+    _assignedSubscription = null;
+    _statusSubscription?.cancel();
+    _statusSubscription = null;
+    
+    _isConnected = false;
+    notifyListeners();
   }
 
   @override
   void dispose() {
     disconnect();
+    _statusConnectionSubscription?.cancel();
     super.dispose();
   }
 }

@@ -1,0 +1,129 @@
+import { useState, useEffect } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { ShoppingCart, Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import useCartStore from '../../store/cartStore';
+import useNotificationStore from '../../store/notificationStore';
+import dfcLogo from '../../assets/dfc-logo.png';
+
+const NAV_LINKS = [
+  { to: '/',        label: 'Home' },
+  { to: '/menu',    label: 'Menu' },
+  { to: '/offers',  label: 'Offers' },
+  { to: '/track',   label: 'Track Order' },
+  { to: '/contact', label: 'Contact' },
+];
+
+const Navbar = () => {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { totalItems, openCart } = useCartStore();
+  const unseenCancelledOrders = useNotificationStore((s) => s.unseenCancelledOrders);
+  const hasNotification = unseenCancelledOrders.length > 0;
+  const location = useLocation();
+  const count = totalItems();
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
+  useEffect(() => setMobileOpen(false), [location]);
+
+  return (
+    <>
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300
+        ${scrolled ? 'bg-white/90 backdrop-blur-lg border-b border-ink-900/[0.06] shadow-soft' : 'bg-white/40 backdrop-blur-sm'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+
+          {/* Logo — official DFC mark */}
+          <Link to="/" className="flex items-center gap-2.5 group select-none">
+            <img src={dfcLogo} alt="DFC — Devi Food Court" className="w-9 h-9 object-contain drop-shadow-sm" />
+            <span className="font-display text-xl tracking-wide text-ink-900 hidden sm:inline">
+              
+            </span>
+          </Link>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1">
+            {NAV_LINKS.map(({ to, label }) => (
+              <NavLink key={to} to={to} end={to === '/'}
+                className={({ isActive }) =>
+                  `relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-150
+                  ${isActive ? 'bg-brand-50' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-900/[0.03]'}`
+                }
+                style={({ isActive }) => isActive ? { color: '#e2131c' } : {}}>
+                {label}
+                {to === '/track' && hasNotification && (
+                  <span className="absolute top-1 right-1.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Cart + mobile trigger */}
+          <div className="flex items-center gap-3">
+            <button onClick={openCart}
+              className="relative p-2.5 rounded-full bg-ink-900/[0.04] hover:bg-ink-900/[0.07] text-ink-900 transition-all border border-ink-900/[0.06]">
+              <ShoppingCart size={19} />
+              {count > 0 && (
+                <motion.span key={count}
+                  initial={{ scale: 0 }} animate={{ scale: 1 }}
+                  className="absolute -top-1 -right-1 w-5 h-5 text-white text-xs font-bold rounded-full flex items-center justify-center animate-cart-bounce"
+                  style={{ background: 'linear-gradient(135deg, #e2131c, #f7780e)' }}>
+                  {count > 9 ? '9+' : count}
+                </motion.span>
+              )}
+            </button>
+            <button onClick={() => setMobileOpen(!mobileOpen)}
+              className="md:hidden p-2 rounded-full hover:bg-ink-900/[0.05] text-ink-900 transition-all">
+              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile menu */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed top-16 left-0 right-0 z-40 bg-white/98 backdrop-blur-xl border-b border-ink-900/[0.06] shadow-soft-lg md:hidden">
+            <div className="px-4 py-4 space-y-1">
+              {NAV_LINKS.map(({ to, label }) => (
+                <NavLink key={to} to={to} end={to === '/'}
+                  className={({ isActive }) =>
+                    `relative block px-4 py-3 rounded-xl text-base font-semibold transition-all
+                    ${isActive ? 'bg-brand-50' : 'text-ink-700 hover:bg-ink-900/[0.03] hover:text-ink-900'}`
+                  }
+                  style={({ isActive }) => isActive ? { color: '#e2131c' } : {}}>
+                  <span className="flex items-center gap-2">
+                    {label}
+                    {to === '/track' && hasNotification && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {unseenCancelledOrders.length}
+                      </span>
+                    )}
+                  </span>
+                </NavLink>
+              ))}
+              <div className="pt-2 pb-1">
+                <button onClick={openCart} className="btn-primary w-full justify-center">
+                  <ShoppingCart size={18} /> View Cart {count > 0 && `(${count})`}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+export default Navbar;

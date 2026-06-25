@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Bebas+Neue&display=swap');
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-cream-50 text-ink-900 font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { @apply bg-cream-100; }
+  ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #e2131c, #f7780e); border-radius: 9999px; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply text-white font-semibold px-6 py-3 rounded-full transition-all duration-200
+           active:scale-95 inline-flex items-center gap-2;
+    background: linear-gradient(135deg, #e2131c 0%, #f7780e 100%);
+    box-shadow: 0 8px 24px rgba(226,19,28,0.25);
+  }
+  .btn-primary:hover { box-shadow: 0 10px 32px rgba(226,19,28,0.35); transform: translateY(-1px); }
+  .btn-outline {
+    @apply border-2 border-ink-900/10 text-ink-900 hover:border-ink-900/20 hover:bg-ink-900/[0.03]
+           font-semibold px-6 py-3 rounded-full transition-all duration-200 inline-flex items-center gap-2;
+  }
+  .section-heading { @apply font-display text-4xl md:text-5xl tracking-wide text-ink-900; }
+  .section-sub      { @apply text-ink-600 text-base max-w-xl; }
+  .card-hover       { @apply transition-all duration-300 hover:-translate-y-1.5; }
+  .glass {
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(26,24,22,0.06);
+  }
+  .input-field {
+    @apply w-full bg-white border border-ink-900/10 rounded-xl px-4 py-3.5 text-ink-900
+           placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40
+           focus:border-brand-400 transition-all text-sm;
+  }
+  .tag { @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold; }
+
+  /* Soft card with subtle border + shadow, premium "paper" feel */
+  .card-premium {
+    @apply bg-white rounded-2xl border border-ink-900/[0.06] shadow-soft;
+  }
+}
+
+/* Gradient text utilities (logo palette) */
+.gradient-text {
+  background: linear-gradient(135deg, #e2131c 0%, #f7780e 55%, #5b9e0f 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.gradient-text-warm {
+  background: linear-gradient(135deg, #e2131c 0%, #f7780e 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.text-glow-red    { filter: drop-shadow(0 4px 14px rgba(226,19,28,0.3)); }
+.text-glow-orange { filter: drop-shadow(0 4px 14px rgba(247,120,14,0.3)); }
+.text-glow-green  { filter: drop-shadow(0 4px 14px rgba(91,158,15,0.3)); }
+
+/* Animated tricolor gradient background (used sparingly, e.g. CTA banner) */
+.animated-gradient {
+  background: linear-gradient(120deg, #e2131c, #f7780e, #5b9e0f, #f7780e, #e2131c);
+  background-size: 300% 300%;
+  animation: gradientX 7s ease infinite;
+}
+
+/* Fly-to-cart element */
+.fly-item { position: fixed; pointer-events: none; z-index: 9999; border-radius: 50%; overflow: hidden; transition: none; }
+
+/* Shimmer skeleton (light) */
+.skeleton {
+  background: linear-gradient(90deg, #f1efec 25%, #fdfaf6 50%, #f1efec 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Category pills */
+.cat-pill-active { @apply text-white shadow-orange-glow; background: linear-gradient(135deg, #e2131c, #f7780e); }
+.cat-pill        { @apply bg-white text-ink-600 hover:text-ink-900 border border-ink-900/10; }
+
+/* Display font for big headline lockups */
+.sign-text { font-family: 'Bebas Neue', 'Playfair Display', serif; letter-spacing: 0.06em; }
+
+/* Soft gradient orb blobs (very light opacity for premium white-bg ambience) */
+.orb-red    { background: radial-gradient(circle, rgba(226,19,28,0.14) 0%, transparent 70%); }
+.orb-orange { background: radial-gradient(circle, rgba(247,120,14,0.14) 0%, transparent 70%); }
+.orb-green  { background: radial-gradient(circle, rgba(91,158,15,0.12) 0%, transparent 70%); }
+
+/* Full-bleed photo banner sections (storefront photos as backgrounds) */
+.photo-banner {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.photo-banner::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(10,8,7,0.15) 0%, rgba(10,8,7,0.65) 85%, rgba(10,8,7,0.85) 100%);
+}
+.photo-banner-content { position: relative; z-index: 1; }
+
+/* Marquee strip text */
+.marquee-inner      { display: flex; width: max-content; animation: marquee 28s linear infinite; }
+.marquee-inner-slow  { display: flex; width: max-content; animation: marquee 44s linear infinite; }
+
+/* Keyframes */
+@keyframes marquee   { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes gradientX { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes shimmer   { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes orbDrift  { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(50px,-60px) scale(1.15); } 66% { transform: translate(-30px,50px) scale(0.9); } }
+@keyframes orbDriftR { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-60px,40px) scale(1.1); } 66% { transform: translate(40px,-50px) scale(0.95); } }
+@keyframes counterUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes float     { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+
+/* Leaflet overrides (light theme) */
+.leaflet-container { background: #f5f3f0; font-family: inherit; }
+.leaflet-control-zoom a { background-color: #ffffff !important; color: #1a1816 !important; border-color: rgba(26,24,22,0.1) !important; }
+.leaflet-control-zoom a:hover { background-color: #fdfaf6 !important; }
+.leaflet-control-attribution { background: rgba(255,255,255,0.85) !important; color: #5c5752 !important; }
+.leaflet-control-attribution a { color: #f7780e !important; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #ffffff !important; color: #1a1816 !important; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-inner, .marquee-inner-slow { animation: none; }
+  .orb-red, .orb-orange, .orb-green   { animation: none; }
+}

@@ -81,8 +81,8 @@ class AppTheme {
         ),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.cream50,
-        elevation: 0,
+        backgroundColor: AppColors.cream100, // Styled soft neat background color
+        elevation: 0.5,
         iconTheme: IconThemeData(color: AppColors.ink900),
         titleTextStyle: TextStyle(color: AppColors.ink900, fontSize: 18, fontWeight: FontWeight.bold),
         centerTitle: false,

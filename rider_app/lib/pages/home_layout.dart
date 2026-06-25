@@ -18,6 +18,7 @@ class HomeLayout extends StatefulWidget {
 class _HomeLayoutState extends State<HomeLayout> {
   int _currentIndex = 0;
   late SocketService _socketService;
+  late PageController _pageController;
 
   final List<Widget> _tabs = const [
     OrdersTab(),
@@ -28,6 +29,7 @@ class _HomeLayoutState extends State<HomeLayout> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initServices();
     });
@@ -53,6 +55,7 @@ class _HomeLayoutState extends State<HomeLayout> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     // Note: Usually SocketService is app-wide and persists, but we disconnect if the widget tree changes
     final ordersProvider = Provider.of<OrdersProvider>(context, listen: false);
     ordersProvider.stopPolling();
@@ -64,8 +67,9 @@ class _HomeLayoutState extends State<HomeLayout> {
     return Consumer<SocketService>(
       builder: (context, socketService, child) {
         return Scaffold(
-          body: IndexedStack(
-            index: _currentIndex,
+          body: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(), // tab navigation only
             children: _tabs,
           ),
           bottomNavigationBar: Container(
@@ -83,8 +87,13 @@ class _HomeLayoutState extends State<HomeLayout> {
                 setState(() {
                   _currentIndex = index;
                 });
+                _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                );
               },
-              backgroundColor: AppColors.white,
+              backgroundColor: AppColors.cream100, // Custom soft neat color background
               selectedItemColor: AppColors.brandRed,
               unselectedItemColor: AppColors.ink500,
               selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
